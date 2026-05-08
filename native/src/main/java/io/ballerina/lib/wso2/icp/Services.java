@@ -91,9 +91,12 @@ public class Services {
     }
 
     private static Object getServiceResources(BObject serviceObj, Module currentModule) {
-        NetworkObjectType networkObjectType = (NetworkObjectType) serviceObj.getType();
         ArrayType arrayType = TypeCreator.createArrayType(TypeUtils.getType(
                 ValueCreator.createRecordValue(currentModule, RESOURCE)), true);
+        Type impliedType = TypeUtils.getImpliedType(serviceObj.getOriginalType());
+        if (!(impliedType instanceof NetworkObjectType networkObjectType)) {
+            return ValueCreator.createArrayValue(arrayType, new BListInitialValueEntry[0]);
+        }
 
         ResourceMethodType[] resourceMethods = networkObjectType.getResourceMethods();
         if (resourceMethods.length > 0) {
