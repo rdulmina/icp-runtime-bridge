@@ -22,6 +22,7 @@ import io.ballerina.runtime.api.creators.ValueCreator;
 import io.ballerina.runtime.api.repository.Artifact;
 import io.ballerina.runtime.api.types.ArrayType;
 import io.ballerina.runtime.api.types.NetworkObjectType;
+import io.ballerina.runtime.api.types.RemoteMethodType;
 import io.ballerina.runtime.api.types.ResourceMethodType;
 import io.ballerina.runtime.api.types.Type;
 import io.ballerina.runtime.api.types.TypeTags;
@@ -90,19 +91,39 @@ public class Services {
     }
 
     private static Object getServiceResources(BObject serviceObj, Module currentModule) {
-        ResourceMethodType[] resourceMethods = ((NetworkObjectType) serviceObj.getType()).getResourceMethods();
-        BListInitialValueEntry[] listenerEntries = new BListInitialValueEntry[resourceMethods.length];
-        for (int i = 0; i < resourceMethods.length; i++) {
-            ResourceMethodType resourceMethod = resourceMethods[i];
-            BMap<BString, Object> resourceRecord = ValueCreator.createMapValue();
-            resourceRecord.put(StringUtils.fromString(METHODS), getAccessorArray(resourceMethod));
-            resourceRecord.put(StringUtils.fromString(URL), getUrl(resourceMethod));
-            listenerEntries[i] = ValueCreator.createListInitialValueEntry(
-                    ValueCreator.createReadonlyRecordValue(currentModule, RESOURCE, resourceRecord));
-        }
         ArrayType arrayType = TypeCreator.createArrayType(TypeUtils.getType(
                 ValueCreator.createRecordValue(currentModule, RESOURCE)), true);
-        return ValueCreator.createArrayValue(arrayType, listenerEntries);
+        Type impliedType = TypeUtils.getImpliedType(serviceObj.getOriginalType());
+        if (!(impliedType instanceof NetworkObjectType networkObjectType)) {
+            return ValueCreator.createArrayValue(arrayType, new BListInitialValueEntry[0]);
+        }
+
+        ResourceMethodType[] resourceMethods = networkObjectType.getResourceMethods();
+        if (resourceMethods.length > 0) {
+            BListInitialValueEntry[] entries = new BListInitialValueEntry[resourceMethods.length];
+            for (int i = 0; i < resourceMethods.length; i++) {
+                ResourceMethodType resourceMethod = resourceMethods[i];
+                BMap<BString, Object> resourceRecord = ValueCreator.createMapValue();
+                resourceRecord.put(StringUtils.fromString(METHODS), getAccessorArray(resourceMethod));
+                resourceRecord.put(StringUtils.fromString(URL), getUrl(resourceMethod));
+                entries[i] = ValueCreator.createListInitialValueEntry(
+                        ValueCreator.createReadonlyRecordValue(currentModule, RESOURCE, resourceRecord));
+            }
+            return ValueCreator.createArrayValue(arrayType, entries);
+        }
+
+        RemoteMethodType[] remoteMethods = networkObjectType.getRemoteMethods();
+        BListInitialValueEntry[] entries = new BListInitialValueEntry[remoteMethods.length];
+        for (int i = 0; i < remoteMethods.length; i++) {
+            BMap<BString, Object> resourceRecord = ValueCreator.createMapValue();
+            resourceRecord.put(StringUtils.fromString(METHODS),
+                    ValueCreator.createReadonlyArrayValue(new BString[]{StringUtils.fromString("remote")}));
+            resourceRecord.put(StringUtils.fromString(URL),
+                    StringUtils.fromString(SINGLE_SLASH + remoteMethods[i].getName()));
+            entries[i] = ValueCreator.createListInitialValueEntry(
+                    ValueCreator.createReadonlyRecordValue(currentModule, RESOURCE, resourceRecord));
+        }
+        return ValueCreator.createArrayValue(arrayType, entries);
     }
 
     private static BString getUrl(ResourceMethodType resourceMethod) {
