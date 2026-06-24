@@ -77,6 +77,12 @@ isolated function getHeartbeat() returns Heartbeat|error {
         heartbeatForHash.runtime = runtime;
     }
 
+    // Derive the callback URL from the runtime's HTTP listener, if any
+    string? workflowCallbackUrl = getworkflowCallbackUrl();
+    if workflowCallbackUrl is string {
+        heartbeatForHash.workflowCallbackUrl = workflowCallbackUrl;
+    }
+
     // Calculate hash from the heartbeat content (excluding timestamp)
     string heartbeatContent = heartbeatForHash.toJsonString();
     string runtimeHash = calculateSimpleHash(heartbeatContent);
@@ -100,6 +106,11 @@ isolated function getHeartbeat() returns Heartbeat|error {
     // Add runtime only if not empty
     if runtime is string {
         heartbeat.runtime = runtime;
+    }
+
+    // Add callback URL only if not empty
+    if workflowCallbackUrl is string {
+        heartbeat.workflowCallbackUrl = workflowCallbackUrl;
     }
 
     return heartbeat;
@@ -182,6 +193,24 @@ isolated function getMainArtifact() returns MainDetail|error =
 @java:Method {
     'class: "io.ballerina.lib.wso2.icp.Artifacts"
 } external;
+
+// Returns the configured host of the first enabled HTTP listener in the runtime.
+// Returns () when no HTTP listener is available.
+isolated function getCallbackHost() returns string? =
+@java:Method {
+    'class: "io.ballerina.lib.wso2.icp.Artifacts"
+} external;
+
+// Builds the callback URL for the workflow management API: the host is taken from
+// the runtime's HTTP listener and the port from the public workflow management
+// `port` config. Returns () when no HTTP listener is available.
+isolated function getworkflowCallbackUrl() returns string? {
+    string? host = getCallbackHost();
+    if host is () {
+        return ();
+    }
+    return string `http://${host}:${management:port}`;
+}
 
 isolated function stopListenerArtifact(string name) returns boolean|error =
 @java:Method {
